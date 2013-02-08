@@ -1,0 +1,126 @@
+#!/bin/bash
+
+# An implementation of Unicorn Herder as a single file bash script
+# https://github.com/alphagov/unicornherder/
+#
+# Usage: ./unicornbasher (gunicorn|unicorn) --pid pidfile.pid --bind 127.0.0.1:4000 myapp.wsgi:application
+#
+# Implements almost the same logic as Unicorn Herder but does not
+# automatically pass the --daemon argument so you can run the master
+# process undaemonized and let it write its logs to stdout, which is
+# critical for well-behaved applications (see http://12factor.net/logs)
+
+
+# Copyright (c) 2013 David Evans
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+set -e
+
+# How long to wait after starting new master before killing old master
+WORKER_START_WAIT=30
+
+_log() {
+  echo "[herder] $1" 1>&2
+}
+
+# Extract the --pid or -P argument so we know which PID file to
+# monitor
+found=false
+for i in $@
+do
+  if $found; then
+    PID_FILE="$i"
+    break
+  fi
+  case "$i" in
+    -P|--pid) found=true
+  esac
+done
+
+if [ -z "$PID_FILE" ]; then
+  _log "You must supply a -P or --pid argument so we know which file to monitor"
+  exit 1
+fi
+
+# (g)unicorn will remove its PID file when the old master process dies
+# and the new master won't create the new PID file immeditately so we
+# have to retry a few times if the read fails
+_read_pid_file() {
+  for attempt in 1 2 3 4 5; do
+    local result=$(cat "$PID_FILE" 2>/dev/null || true)
+    if [ "$result" != '' ]; then
+      echo "$result"
+      return 0
+    fi
+    _log "Failed to read $PID_FILE (this is normal), trying again..."
+    sleep 1
+  done
+  _log "Failed to read $PID_FILE after 5 attempts, exiting."
+  return 1
+}
+
+_reload_master_process() {
+  _log "Caught SIGHUP, telling master process to reload"
+  RELOADING=true
+  kill -USR2 "$OLD_MASTER_PID"
+}
+
+_kill_all_the_things() {
+  kill "$OLD_MASTER_PID" "$NEW_MASTER_PID" $(jobs -p) > /dev/null || true
+}
+
+# Start master process
+$@ &
+
+# Give the master a chance to start so we don't always clutter the logs
+# with an initial "failed to read pid" message
+sleep 1
+
+RELOADING=false
+OLD_MASTER_PID=$(_read_pid_file)
+NEW_MASTER_PID="$OLD_MASTER_PID"
+
+trap _kill_all_the_things EXIT
+
+# Trigger loading of new master on SIGHUP (the monitoring loop below
+# will detect the new master and gracefully shutdown the old one)
+trap _reload_master_process SIGHUP
+
+# Don't forward SIGWINCH which is sent when the terminal is resized
+# and causes unicorn to kill its workers
+trap '' SIGWINCH
+
+# Keep monitoring PID file for changes and kill old master if new master
+# starts running
+while true; do
+  NEW_MASTER_PID=$(_read_pid_file)
+  if ! ps --pid "$NEW_MASTER_PID" > /dev/null; then
+    _log "Master process (pid: $NEW_MASTER_PID) no longer running, exiting"
+    exit 1
+  fi
+  if [ "$OLD_MASTER_PID" != "$NEW_MASTER_PID" ]; then
+    _log "Detected master PID change from $OLD_MASTER_PID to $NEW_MASTER_PID"
+    if $RELOADING; then
+      _log "Reload in progress, waiting $WORKER_START_WAIT seconds for new workers to start..."
+      sleep "$WORKER_START_WAIT"
+      _log "Initiating graceful shutdown of old master (pid: $OLD_MASTER_PID)"
+      kill -QUIT "$OLD_MASTER_PID"
+      RELOADING=false
+    fi
+  fi
+  OLD_MASTER_PID="$NEW_MASTER_PID"
+  sleep 2
+done
+
