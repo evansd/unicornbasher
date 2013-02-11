@@ -33,7 +33,7 @@
 set -e
 
 # How long to wait after starting new master before killing old master
-WORKER_START_WAIT=30
+: ${UNICORNBASHER_RESTART_WAIT:="30"}
 
 _log() {
   echo "[unicornbasher] $1" 1>&2
@@ -117,8 +117,8 @@ while true; do
   if [ "$OLD_MASTER_PID" != "$NEW_MASTER_PID" ]; then
     _log "Detected master PID change from $OLD_MASTER_PID to $NEW_MASTER_PID"
     if $RELOADING; then
-      _log "Reload in progress, waiting $WORKER_START_WAIT seconds for new workers to start..."
-      sleep "$WORKER_START_WAIT"
+      _log "Reload in progress, waiting $UNICORNBASHER_RESTART_WAIT seconds for new workers to start..."
+      sleep "$UNICORNBASHER_RESTART_WAIT"
       _log "Initiating graceful shutdown of old master (pid: $OLD_MASTER_PID)"
       kill -QUIT "$OLD_MASTER_PID"
       RELOADING=false
