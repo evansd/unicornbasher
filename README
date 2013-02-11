@@ -1,0 +1,24 @@
+An implementation of Unicorn Herder as a single file bash script
+https://github.com/alphagov/unicornherder/
+
+Usage: ./unicornbasher (gunicorn|unicorn) --pid pidfile.pid --bind 127.0.0.1:4000 myapp.wsgi:application
+
+Implements almost the same logic as Unicorn Herder but does not
+automatically pass the --daemon argument so you can run the master
+process undaemonized and let it write its logs to stdout, which is
+critical for well-behaved applications (see http://12factor.net/logs)
+
+
+Copyright (c) 2013 David Evans
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
