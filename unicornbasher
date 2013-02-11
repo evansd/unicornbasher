@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# UnicornBasher
+# -------------
+# https://github.com/evansd/unicornbasher/
+#
 # An implementation of Unicorn Herder as a single file bash script
 # https://github.com/alphagov/unicornherder/
 #
@@ -9,8 +13,8 @@
 # automatically pass the --daemon argument so you can run the master
 # process undaemonized and let it write its logs to stdout, which is
 # critical for well-behaved applications (see http://12factor.net/logs)
-
-
+#
+#
 # Copyright (c) 2013 David Evans
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
