@@ -32,7 +32,7 @@ set -e
 WORKER_START_WAIT=30
 
 _log() {
-  echo "[herder] $1" 1>&2
+  echo "[unicornbasher] $1" 1>&2
 }
 
 # Extract the --pid or -P argument so we know which PID file to
